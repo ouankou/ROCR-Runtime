@@ -429,6 +429,8 @@ class GpuAgent : public GpuAgentInt {
 
   // @brief Override from AMD::GpuAgentInt.
   __forceinline bool is_xgmi_cpu_gpu() const { return xgmi_cpu_gpu_; }
+  /// @brief Is large BAR support enabled for this GPU.
+  __forceinline bool LargeBarEnabled() const { return large_bar_enabled_; }
 
   const size_t MAX_SCRATCH_APERTURE_PER_XCC = (1ULL << 32);
   size_t MaxScratchDevice() const { return properties_.NumXcc * MAX_SCRATCH_APERTURE_PER_XCC; }
@@ -799,8 +801,10 @@ class GpuAgent : public GpuAgentInt {
   bool uses_rec_sdma_eng_id_mask_;
   bool rec_sdma_eng_override_;
 
-  // @bried XGMI CPU<->GPU
-  bool xgmi_cpu_gpu_;
+  /// @brief XGMI CPU<->GPU
+  bool xgmi_cpu_gpu_ = false;
+  /// @brief Is PCIe large BAR enabled.
+  bool large_bar_enabled_ = false;
 };
 
 }  // namespace amd
