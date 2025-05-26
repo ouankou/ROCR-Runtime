@@ -89,8 +89,6 @@ struct vm_object {
 			* size, Thunk aligns it to page size and allocates this
 			* aligned size on GPU
 			*/
-	uint64_t *handles; /* kfd handles array */
-	uint32_t handle_num; /* number of handles */
 	uint32_t node_id;
 	rbtree_node_t node;
 	rbtree_node_t user_node;
@@ -117,6 +115,8 @@ struct vm_object {
 	int mmap_fd;
 	off_t mmap_offset;
 #endif
+	uint32_t handle_num; /* number of handles */
+	uint64_t handles[]; /* kfd handles array */
 };
 typedef struct vm_object vm_object_t;
 
@@ -330,30 +330,26 @@ static vm_area_t *vm_create_and_init_area(void *start, void *end)
 	return area;
 }
 
-/* One page smaller than 512GB system buffer limit,
+/* One huge page smaller than 512GB system buffer limit,
  * because 512GB allocation will cause TTM failure.
  */
-#define BIGGEST_SINGLE_BUF_SIZE ((1ULL << 39) - PAGE_SIZE)
+#define BIGGEST_SINGLE_BUF_SIZE ((1ULL << 39) - GPU_HUGE_PAGE_SIZE)
 
 static vm_object_t *vm_create_and_init_object(void *start, uint64_t size,
 					      uint64_t handle, HsaMemFlags mflags)
 {
-	vm_object_t *object = (vm_object_t *) malloc(sizeof(vm_object_t));
-	uint64_t handle_array_size;
+	vm_object_t *object;
+	uint64_t handle_array_size = (size + BIGGEST_SINGLE_BUF_SIZE - 1) /
+				     BIGGEST_SINGLE_BUF_SIZE;
+
+	object = (vm_object_t *) malloc(sizeof(vm_object_t) +
+		 handle_array_size * sizeof(uint64_t));
 
 	if (object) {
 		object->start = start;
 		object->userptr = NULL;
 		object->userptr_size = 0;
 		object->size = size;
-		handle_array_size = (size + BIGGEST_SINGLE_BUF_SIZE - 1) /
-				    BIGGEST_SINGLE_BUF_SIZE;
-		object->handles = (uint64_t *)malloc(handle_array_size *
-				  sizeof(uint64_t));
-		if (!object->handles) {
-			free(object);
-			return NULL;
-		}
 		object->handles[0] = handle;
 		object->handle_num = 1;
 		object->registered_device_id_array_size = 0;
@@ -401,9 +397,6 @@ static void vm_remove_area(manageable_aperture_t *app, vm_area_t *area)
 static void vm_remove_object(manageable_aperture_t *app, vm_object_t *object)
 {
 	/* Free allocations inside the object */
-	if (object->handles)
-		free(object->handles);
-
 	if (object->registered_device_id_array)
 		free(object->registered_device_id_array);
 
@@ -1135,7 +1128,6 @@ static vm_object_t *fmm_allocate_memory_object(uint32_t gpu_id, void *mem,
 	struct kfd_ioctl_free_memory_of_gpu_args free_args = {0};
 	vm_object_t *vm_obj = NULL;
 	HsaMemFlags mflags;
-	int i;
 	uint64_t offset = 0, total_size, size;
 
 	if (!mem)
