@@ -1665,7 +1665,7 @@ void AqlQueue::ExecutePM4(uint32_t* cmd_data, size_t cmd_size_b, hsa_fence_scope
   memcpy(&queue_slot[1], &slot_data[1], slot_size_b - sizeof(uint32_t));
   if (core::Runtime::runtime_singleton_->flag().dev_mem_queue() && !agent_->is_xgmi_cpu_gpu()) {
     // Ensure the packet body is written as header may get reordered when writing over PCIE
-    _mm_sfence();
+    PcieWriteFence();
   }
   atomic::Store(&queue_slot[0], slot_data[0], std::memory_order_release);
 

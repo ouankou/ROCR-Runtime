@@ -74,8 +74,8 @@ namespace image {
 
 
 #if defined(__GNUC__)
-#include "mm_malloc.h"
 #if defined(__i386__) || defined(__x86_64__)
+#include "mm_malloc.h"
 #include <x86intrin.h>
 #elif defined(__loongarch64)
 #else

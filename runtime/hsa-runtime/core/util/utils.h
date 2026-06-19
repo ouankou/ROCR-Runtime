@@ -51,6 +51,7 @@
 #include "stdarg.h"
 #include "unistd.h"
 #include <assert.h>
+#include <atomic>
 #include <iostream>
 #include <string>
 #include <algorithm>
@@ -348,12 +349,29 @@ static __forceinline std::string& rtrim(std::string& s) {
 
 static __forceinline std::string& trim(std::string& s) { return ltrim(rtrim(s)); }
 
+static __forceinline void PcieWriteFence() {
+#if defined(__x86_64__) || defined(_M_X64)
+  _mm_sfence();
+#else
+  std::atomic_thread_fence(std::memory_order_release);
+#endif
+}
+
+static __forceinline void PcieReadWriteFence() {
+#if defined(__x86_64__) || defined(_M_X64)
+  _mm_mfence();
+#else
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+#endif
+}
+
 /// @brief: Flush the cachelines associated with the
 /// provided address, offset, and length
 /// @param: base(Input), base address to flush
 /// @param: offset(Input), offset of base address to flush
 /// @param: len(Input), length of buffer to flush
 inline void FlushCpuCache(const void* base, size_t offset, size_t len) {
+#if defined(__x86_64__) || defined(_M_X64)
   static long cacheline_size = 0;
 
   if (!cacheline_size) {
@@ -369,6 +387,9 @@ inline void FlushCpuCache(const void* base, size_t offset, size_t len) {
     _mm_clflush((const void*)cur);
     cur += cacheline_size;
   } while (cur <= (const char*)lastline);
+#else
+  PcieReadWriteFence();
+#endif
 }
 
 }  // namespace rocr
